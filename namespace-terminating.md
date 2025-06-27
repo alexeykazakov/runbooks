@@ -18,19 +18,35 @@ The `namespace-terminating` alert is triggered when a namespace is stuck in the 
 
 ### 2. Analyze Namespace Status
 - **Action:** Analyze the namespace status to determine which resources are still present and preventing deletion.
-- **AI Note:** Look for references in `status.conditions`, or other fields that indicate remaining resources or blockers.
+- **AI Note:** Examine the `status.conditions` array for conditions like `NamespaceContentRemaining` and `NamespaceFinalizersRemaining`. Look for messages indicating specific resource types and counts (e.g., "Some resources are remaining: <resource_type>. has 1 resource instances"). If ANY remaining resources are found, Step 3 becomes MANDATORY.
 
-### 3. List Remaining Resources
+### 3. List Remaining Resources **[MANDATORY IF STEP 2 FINDS REMAINING RESOURCES]**
 - **Action:** List all resources still present in the namespace according to the namespace status.
 - **Command:**
   ```shell
   oc get <resource> -n <namespace> -o yaml
   ```
-- **AI Note:** Replace `<namespace>` with the namespace name and `<resource>` with the resource type from NamespaceContentRemaining condition from the namespace status. Collect all resource types and instances that are not yet deleted.
+- **AI Note:** **CRITICAL:** If Step 2 revealed remaining resources (e.g., "Some resources are remaining: <resource_type>. has 1 resource instances"), you MUST retrieve the actual resource details. Extract resource types from the `NamespaceContentRemaining` condition message and call the appropriate commands for each resource type. Do NOT proceed without getting the actual resource YAML - knowing "1 <resource_type> exists" is not enough, you need the resource's content, name, and finalizers.
 
-### 4. Check for Stuck Finalizers
-- **Action:** For each remaining resource, check if it is stuck due to finalizers.
-- **AI Note:** For each resource, inspect the `metadata.finalizers` field. Identify which resources have non-empty finalizers and note their values.
+### 4. Check for Stuck Finalizers **[MANDATORY IF STEP 3 FOUND RESOURCES]**
+- **Action:** For each remaining resource retrieved in Step 3, check if it is stuck due to finalizers.
+- **AI Note:** Inspect the `metadata.finalizers` field in each resource from Step 3. Identify which resources have non-empty finalizers and note their values. This step requires the actual resource YAML from Step 3.
+
+---
+
+## ✅ DIAGNOSTIC PHASE COMPLETE
+
+**At this point, you should have:**
+- Namespace status with all conditions and finalizers identified
+- Complete YAML details of any remaining resources preventing deletion
+- Specific finalizer names and their associated resources
+- Clear understanding of what is blocking the namespace deletion
+
+**If you don't have all the above data, continue data gathering. If you do, proceed to remediation steps.**
+
+---
+
+## REMEDIATION PHASE
 
 ### 5. Operator Finalizer Handling
 - **Action:** If a finalizer belongs to an operator, escalate or notify the operator team.
